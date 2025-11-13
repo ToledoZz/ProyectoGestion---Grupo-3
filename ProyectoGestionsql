@@ -1,0 +1,523 @@
+------------------------------------------------------------
+-- CONFIGURACIÓN INICIAL
+------------------------------------------------------------
+ALTER SESSION SET "_ORACLE_SCRIPT" = TRUE;
+
+------------------------------------------------------------
+-- CREACIÓN DE USUARIOS
+------------------------------------------------------------
+CREATE USER pers_tablas IDENTIFIED BY pers_tablas DEFAULT TABLESPACE users TEMPORARY TABLESPACE temp QUOTA UNLIMITED ON users;
+CREATE USER proy_tablas IDENTIFIED BY proy_tablas DEFAULT TABLESPACE users TEMPORARY TABLESPACE temp QUOTA UNLIMITED ON users;
+CREATE USER activos_tablas IDENTIFIED BY activos_tablas DEFAULT TABLESPACE users TEMPORARY TABLESPACE temp QUOTA UNLIMITED ON users;
+
+------------------------------------------------------------
+-- PRIVILEGIOS BÁSICOS
+------------------------------------------------------------
+GRANT CREATE SESSION, CREATE TABLE, CREATE PROCEDURE TO pers_tablas;
+GRANT CREATE SESSION, CREATE TABLE, CREATE PROCEDURE TO proy_tablas;
+GRANT CREATE SESSION, CREATE TABLE, CREATE PROCEDURE TO activos_tablas;
+
+------------------------------------------------------------
+-- TABLAS DEL ESQUEMA PERS_TABLAS
+------------------------------------------------------------
+CONNECT pers_tablas/pers_tablas;
+
+CREATE TABLE zona (
+  id_zona NUMBER CONSTRAINT pk_zona PRIMARY KEY,
+  nombre VARCHAR2(100) NOT NULL
+);
+
+CREATE TABLE rol (
+  id_rol NUMBER CONSTRAINT pk_rol PRIMARY KEY,
+  nombre VARCHAR2(100) NOT NULL
+);
+
+CREATE TABLE departamento (
+  id_depto NUMBER CONSTRAINT pk_departamento PRIMARY KEY,
+  nombre VARCHAR2(100) NOT NULL,
+  zona_id NUMBER CONSTRAINT fk1_departamento REFERENCES zona
+);
+
+CREATE TABLE personal (
+  id NUMBER CONSTRAINT pk_personal PRIMARY KEY,
+  nombre VARCHAR2(100) NOT NULL,
+  correo VARCHAR2(100) NOT NULL,
+  depto_id NUMBER CONSTRAINT fk1_personal REFERENCES departamento,
+  rol_id NUMBER CONSTRAINT fk2_personal REFERENCES rol
+);
+
+------------------------------------------------------------
+-- TABLAS DEL ESQUEMA PROY_TABLAS
+------------------------------------------------------------
+CONNECT proy_tablas/proy_tablas;
+
+CREATE TABLE proyecto (
+  id NUMBER CONSTRAINT pk_proyecto PRIMARY KEY,
+  nombre VARCHAR2(100) NOT NULL,
+  descripcion VARCHAR2(200),
+  zona_id NUMBER,
+  inicio DATE,
+  fin DATE,
+  FOREIGN KEY (zona_id) REFERENCES pers_tablas.zona
+);
+
+CREATE TABLE asignacion_personal_proyecto (
+  personal_id NUMBER,
+  proyecto_id NUMBER,
+  asignado DATE,
+  salida DATE,
+  CONSTRAINT pk_asig_personal PRIMARY KEY (personal_id, proyecto_id),
+  FOREIGN KEY (personal_id) REFERENCES pers_tablas.personal,
+  FOREIGN KEY (proyecto_id) REFERENCES proyecto
+);
+
+------------------------------------------------------------
+-- TABLAS DEL ESQUEMA ACTIVOS_TABLAS
+------------------------------------------------------------
+CONNECT activos_tablas/activos_tablas;
+
+CREATE TABLE activo (
+  id NUMBER CONSTRAINT pk_activo PRIMARY KEY,
+  nombre VARCHAR2(50) NOT NULL,
+  tipo VARCHAR2(50),
+  estado VARCHAR2(50),
+  zona_id NUMBER,
+  FOREIGN KEY (zona_id) REFERENCES pers_tablas.zona
+);
+
+CREATE TABLE asignacion_activo_proyecto (
+  proyecto_id NUMBER,
+  activo_id NUMBER,
+  asignado DATE,
+  salida DATE,
+  CONSTRAINT pk_asig_activo PRIMARY KEY (proyecto_id, activo_id),
+  FOREIGN KEY (proyecto_id) REFERENCES proy_tablas.proyecto,
+  FOREIGN KEY (activo_id) REFERENCES activo
+);
+
+------------------------------------------------------------
+-- PERMISOS ENTRE USUARIOS
+------------------------------------------------------------
+CONNECT pers_tablas/pers_tablas;
+GRANT REFERENCES ON zona TO proy_tablas;
+GRANT REFERENCES ON personal TO proy_tablas;
+GRANT REFERENCES ON zona TO activos_tablas;
+
+CONNECT proy_tablas/proy_tablas;
+GRANT SELECT ON proyecto TO pers_tablas;
+GRANT SELECT ON asignacion_personal_proyecto TO pers_tablas;
+
+CONNECT activos_tablas/activos_tablas;
+GRANT SELECT ON activo TO pers_tablas;
+GRANT SELECT ON asignacion_activo_proyecto TO pers_tablas;
+
+------------------------------------------------------------
+-- INSERTS AUTOMÁTICOS (50 REGISTROS)
+------------------------------------------------------------
+
+-- zona
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO pers_tablas.zona VALUES (i, 'Zona_'||i);
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- rol
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO pers_tablas.rol VALUES (i, 'Rol_'||i);
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- departamento
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO pers_tablas.departamento VALUES (i, 'Depto_'||i, MOD(i,50)+1);
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- personal
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO pers_tablas.personal VALUES (
+      i,
+      'Persona_'||i,
+      'persona'||i||'@correo.com',
+      MOD(i,50)+1,
+      MOD(i,50)+1
+    );
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- proyecto
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO proy_tablas.proyecto VALUES (
+      i,
+      'Proyecto_'||i,
+      'Descripcion '||i,
+      MOD(i,50)+1,
+      SYSDATE,
+      SYSDATE+(i*2)
+    );
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- asignacion_personal_proyecto
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO proy_tablas.asignacion_personal_proyecto VALUES (
+      MOD(i,50)+1,
+      i,
+      SYSDATE,
+      SYSDATE+(i*3)
+    );
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- activo
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO activos_tablas.activo VALUES (
+      i,
+      'Activo_'||i,
+      CASE MOD(i,4)
+        WHEN 0 THEN 'Vehiculo'
+        WHEN 1 THEN 'Computadora'
+        WHEN 2 THEN 'Herramienta'
+        ELSE 'Mueble'
+      END,
+      CASE MOD(i,3)
+        WHEN 0 THEN 'Disponible'
+        WHEN 1 THEN 'En uso'
+        ELSE 'Mantenimiento'
+      END,
+      MOD(i,50)+1
+    );
+  END LOOP;
+  COMMIT;
+END;
+/
+
+-- asignacion_activo_proyecto
+BEGIN
+  FOR i IN 1..50 LOOP
+    INSERT INTO activos_tablas.asignacion_activo_proyecto VALUES (
+      MOD(i,50)+1,
+      i,
+      SYSDATE,
+      SYSDATE+(i*5)
+    );
+  END LOOP;
+  COMMIT;
+END;
+/
+
+------------------------------------------------------------
+-- PROCEDIMIENTOS PL/SQL DE INSERCIÓN (AGREGAR)
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE AGREGAR_ZONA (p_id_zona IN Zona.id_zona%TYPE,p_nombre IN Zona.nombre%TYPE) IS
+BEGIN INSERT INTO Zona VALUES (p_id_zona,p_nombre); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_ROL (p_id_rol IN Rol.id_rol%TYPE,p_nombre IN Rol.nombre%TYPE) IS
+BEGIN INSERT INTO Rol VALUES (p_id_rol,p_nombre); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_DEPARTAMENTO (p_id_depto IN Departamento.id_depto%TYPE,p_nombre IN Departamento.nombre%TYPE,p_zona_id IN Departamento.zona_id%TYPE) IS
+BEGIN INSERT INTO Departamento VALUES (p_id_depto,p_nombre,p_zona_id); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_PERSONAL (p_id IN Personal.id%TYPE,p_nombre IN Personal.nombre%TYPE,p_correo IN Personal.correo%TYPE,p_depto_id IN Personal.depto_id%TYPE,p_rol_id IN Personal.rol_id%TYPE) IS
+BEGIN INSERT INTO Personal VALUES (p_id,p_nombre,p_correo,p_depto_id,p_rol_id); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_ACTIVO (p_id IN Activo.id%TYPE,p_nombre IN Activo.nombre%TYPE,p_tipo IN Activo.tipo%TYPE,p_estado IN Activo.estado%TYPE,p_zona_id IN Activo.zona_id%TYPE) IS
+BEGIN INSERT INTO Activo VALUES (p_id,p_nombre,p_tipo,p_estado,p_zona_id); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_PROYECTO (
+p_id IN Proyecto.id%TYPE,p_nombre IN Proyecto.nombre%TYPE,p_descripcion IN Proyecto.descripcion%TYPE,p_zona_id IN Proyecto.zona_id%TYPE,p_inicio IN Proyecto.inicio%TYPE,p_fin IN Proyecto.fin%TYPE) IS
+BEGIN INSERT INTO Proyecto VALUES (p_id,p_nombre,p_descripcion,p_zona_id,p_inicio,p_fin); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_ASIGNACION_PERSONAL (p_personal_id IN AsignacionPersonalProyecto.personal_id%TYPE,p_proyecto_id IN AsignacionPersonalProyecto.proyecto_id%TYPE,p_asignado IN AsignacionPersonalProyecto.asignado%TYPE,p_salida IN AsignacionPersonalProyecto.salida%TYPE) IS
+BEGIN INSERT INTO AsignacionPersonalProyecto VALUES (p_personal_id,p_proyecto_id,p_asignado,p_salida); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+CREATE OR REPLACE PROCEDURE AGREGAR_ASIGNACION_ACTIVO (p_proyecto_id IN AsignacionActivoProyecto.proyecto_id%TYPE,p_activo_id IN AsignacionActivoProyecto.activo_id%TYPE,p_asignado IN AsignacionActivoProyecto.asignado%TYPE,p_salida IN AsignacionActivoProyecto.salida%TYPE) IS
+BEGIN INSERT INTO AsignacionActivoProyecto VALUES (p_proyecto_id,p_activo_id,p_asignado,p_salida); COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE; END;
+/
+
+------------------------------------------------------------
+-- PROCEDIMIENTOS CRUD (UPDATE + DELETE)
+------------------------------------------------------------
+
+------------------------------------------------------------
+-- ZONA
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_ZONA (
+    p_id_zona IN Zona.id_zona%TYPE,
+    p_nombre  IN Zona.nombre%TYPE
+) IS
+BEGIN
+    UPDATE Zona SET nombre = p_nombre WHERE id_zona = p_id_zona;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_ZONA (
+    p_id_zona IN Zona.id_zona%TYPE
+) IS
+BEGIN
+    DELETE FROM Zona WHERE id_zona = p_id_zona;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- ROL
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_ROL (
+    p_id_rol IN Rol.id_rol%TYPE,
+    p_nombre IN Rol.nombre%TYPE
+) IS
+BEGIN
+    UPDATE Rol SET nombre = p_nombre WHERE id_rol = p_id_rol;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_ROL (
+    p_id_rol IN Rol.id_rol%TYPE
+) IS
+BEGIN
+    DELETE FROM Rol WHERE id_rol = p_id_rol;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- DEPARTAMENTO
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_DEPARTAMENTO (
+    p_id_depto IN Departamento.id_depto%TYPE,
+    p_nombre   IN Departamento.nombre%TYPE,
+    p_zona_id  IN Departamento.zona_id%TYPE
+) IS
+BEGIN
+    UPDATE Departamento
+    SET nombre = p_nombre, zona_id = p_zona_id
+    WHERE id_depto = p_id_depto;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_DEPARTAMENTO (
+    p_id_depto IN Departamento.id_depto%TYPE
+) IS
+BEGIN
+    DELETE FROM Departamento WHERE id_depto = p_id_depto;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- PERSONAL
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_PERSONAL (
+    p_id       IN Personal.id%TYPE,
+    p_nombre   IN Personal.nombre%TYPE,
+    p_correo   IN Personal.correo%TYPE,
+    p_depto_id IN Personal.depto_id%TYPE,
+    p_rol_id   IN Personal.rol_id%TYPE
+) IS
+BEGIN
+    UPDATE Personal
+    SET nombre = p_nombre,
+        correo = p_correo,
+        depto_id = p_depto_id,
+        rol_id = p_rol_id
+    WHERE id = p_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_PERSONAL (
+    p_id IN Personal.id%TYPE
+) IS
+BEGIN
+    DELETE FROM Personal WHERE id = p_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- ACTIVO
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_ACTIVO (
+    p_id      IN Activo.id%TYPE,
+    p_nombre  IN Activo.nombre%TYPE,
+    p_tipo    IN Activo.tipo%TYPE,
+    p_estado  IN Activo.estado%TYPE,
+    p_zona_id IN Activo.zona_id%TYPE
+) IS
+BEGIN
+    UPDATE Activo
+    SET nombre = p_nombre,
+        tipo = p_tipo,
+        estado = p_estado,
+        zona_id = p_zona_id
+    WHERE id = p_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_ACTIVO (
+    p_id IN Activo.id%TYPE
+) IS
+BEGIN
+    DELETE FROM Activo WHERE id = p_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- PROYECTO
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_PROYECTO (
+    p_id          IN Proyecto.id%TYPE,
+    p_nombre      IN Proyecto.nombre%TYPE,
+    p_descripcion IN Proyecto.descripcion%TYPE,
+    p_zona_id     IN Proyecto.zona_id%TYPE,
+    p_inicio      IN Proyecto.inicio%TYPE,
+    p_fin         IN Proyecto.fin%TYPE
+) IS
+BEGIN
+    UPDATE Proyecto
+    SET nombre = p_nombre,
+        descripcion = p_descripcion,
+        zona_id = p_zona_id,
+        inicio = p_inicio,
+        fin = p_fin
+    WHERE id = p_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_PROYECTO (
+    p_id IN Proyecto.id%TYPE
+) IS
+BEGIN
+    DELETE FROM Proyecto WHERE id = p_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- ASIGNACION PERSONAL - PROYECTO
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_ASIGNACION_PERSONAL (
+    p_personal_id IN AsignacionPersonalProyecto.personal_id%TYPE,
+    p_proyecto_id IN AsignacionPersonalProyecto.proyecto_id%TYPE,
+    p_asignado    IN AsignacionPersonalProyecto.asignado%TYPE,
+    p_salida      IN AsignacionPersonalProyecto.salida%TYPE
+) IS
+BEGIN
+    UPDATE AsignacionPersonalProyecto
+    SET asignado = p_asignado,
+        salida   = p_salida
+    WHERE personal_id = p_personal_id
+      AND proyecto_id = p_proyecto_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_ASIGNACION_PERSONAL (
+    p_personal_id IN AsignacionPersonalProyecto.personal_id%TYPE,
+    p_proyecto_id IN AsignacionPersonalProyecto.proyecto_id%TYPE
+) IS
+BEGIN
+    DELETE FROM AsignacionPersonalProyecto
+    WHERE personal_id = p_personal_id
+      AND proyecto_id = p_proyecto_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+------------------------------------------------------------
+-- ASIGNACION ACTIVO - PROYECTO
+------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE ACTUALIZAR_ASIGNACION_ACTIVO (
+    p_proyecto_id IN AsignacionActivoProyecto.proyecto_id%TYPE,
+    p_activo_id   IN AsignacionActivoProyecto.activo_id%TYPE,
+    p_asignado    IN AsignacionActivoProyecto.asignado%TYPE,
+    p_salida      IN AsignacionActivoProyecto.salida%TYPE
+) IS
+BEGIN
+    UPDATE AsignacionActivoProyecto
+    SET asignado = p_asignado,
+        salida = p_salida
+    WHERE proyecto_id = p_proyecto_id
+      AND activo_id   = p_activo_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ELIMINAR_ASIGNACION_ACTIVO (
+    p_proyecto_id IN AsignacionActivoProyecto.proyecto_id%TYPE,
+    p_activo_id   IN AsignacionActivoProyecto.activo_id%TYPE
+) IS
+BEGIN
+    DELETE FROM AsignacionActivoProyecto
+    WHERE proyecto_id = p_proyecto_id
+      AND activo_id   = p_activo_id;
+    COMMIT;
+EXCEPTION WHEN OTHERS THEN ROLLBACK; RAISE;
+END;
+/
+
